@@ -155,7 +155,7 @@ impl Client {
         mut req: Request,
     ) -> impl Future<Output = crate::Result<Response>> {
         self.merge_headers(&mut req);
-        fetch(req)
+        fetch(client, req)
     }
 }
 
@@ -181,7 +181,7 @@ impl fmt::Debug for ClientBuilder {
     }
 }
 
-async fn fetch(req: Request) -> crate::Result<Response> {
+async fn fetch(client: Client, req: Request) -> crate::Result<Response> {
     // Build the js Request
     let mut init = web_sys::RequestInit::new();
     init.method(req.method().as_str());
@@ -202,8 +202,8 @@ async fn fetch(req: Request) -> crate::Result<Response> {
     }
     init.headers(&js_headers.into());
 
-    // When req.cors is true, do nothing because the default mode is 'cors'
-    if !req.cors {
+    // When req.cors or client.config.cors is true, do nothing because the default mode is 'cors'
+    if !req.cors || !client.config.cors {
         init.mode(web_sys::RequestMode::NoCors);
     }
 
@@ -259,6 +259,12 @@ impl ClientBuilder {
         }
     }
 
+    /// Disable cors client wide
+    pub fn fetch_mode_no_cors(mut self) -> ClientBuilder {
+        self.config.cors = false;
+        self
+    }
+
     /// Returns a 'Client' that uses this ClientBuilder configuration
     pub fn build(mut self) -> Result<Client, crate::Error> {
         let config = std::mem::take(&mut self.config);
@@ -285,12 +291,14 @@ impl Default for ClientBuilder {
 #[derive(Clone, Debug)]
 struct Config {
     headers: HeaderMap,
+    cors: bool,
 }
 
 impl Default for Config {
     fn default() -> Config {
         Config {
             headers: HeaderMap::new(),
+            cors: true,
         }
     }
 }
